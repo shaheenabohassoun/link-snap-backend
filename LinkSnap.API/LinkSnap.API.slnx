@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="../LinkSnap.Application/LinkSnap.Application.csproj" />
+  <Project Path="../LinkSnap.Domain/LinkSnap.Domain.csproj" />
+  <Project Path="../LinkSnap.Infrastructure/LinkSnap.Infrastructure.csproj" />
+  <Project Path="LinkSnap.API.csproj" />
+</Solution>
