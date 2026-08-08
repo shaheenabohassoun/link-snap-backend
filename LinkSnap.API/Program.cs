@@ -15,15 +15,24 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var port = Environment.GetEnvironmentVariable("PORT");
+if (!string.IsNullOrWhiteSpace(port))
+{
+    builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+}
+
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
+
+var configuredOrigins = builder.Configuration["Cors:FrontendOrigins"]
+    ?? "http://localhost:4200,http://127.0.0.1:4200";
+var frontendOrigins = configuredOrigins
+    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("Frontend", policy =>
-        policy.WithOrigins(
-                "http://localhost:4200",
-                "http://127.0.0.1:4200")
+        policy.WithOrigins(frontendOrigins)
               .AllowAnyHeader()
               .AllowAnyMethod());
 });
@@ -37,8 +46,12 @@ builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();
 builder.Services.AddValidatorsFromAssemblyContaining<ShortenRequestValidator>();
 
 builder.Services.AddAutoMapper(typeof(MappingProfile));
+
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' is missing.");
+
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(connectionString));
 
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
     .AddEntityFrameworkStores<ApplicationDbContext>()
@@ -52,7 +65,8 @@ builder.Services.AddAuthentication(options =>
 .AddJwtBearer(options =>
 {
     var jwtSettings = builder.Configuration.GetSection("JwtSettings");
-    var secretKey = jwtSettings["Secret"];
+    var secretKey = jwtSettings["Secret"]
+        ?? throw new InvalidOperationException("JwtSettings:Secret is missing.");
     var issuer = jwtSettings["Issuer"];
     var audience = jwtSettings["Audience"];
 
@@ -63,7 +77,7 @@ builder.Services.AddAuthentication(options =>
         ValidateAudience = true,
         ValidAudience = audience,
         ValidateIssuerSigningKey = true,
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey!)),
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey)),
         ValidateLifetime = true,
         ClockSkew = TimeSpan.Zero,
         NameClaimType = System.Security.Claims.ClaimTypes.NameIdentifier
@@ -104,6 +118,12 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    db.Database.Migrate();
+}
+
 app.UseSwagger();
 app.UseSwaggerUI();
 
@@ -116,15 +136,11 @@ app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 app.UseCors("Frontend");
 
-if (!app.Environment.IsDevelopment())
-{
-    app.UseHttpsRedirection();
-}
-
 app.UseAuthentication();
-
 app.UseAuthorization();
 
 app.MapControllers();
+
+app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
 app.Run();

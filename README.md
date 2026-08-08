@@ -63,13 +63,15 @@ Client (Angular)
 ## Tech stack
 
 - **.NET 9** / ASP.NET Core Web API  
-- **Entity Framework Core** + **SQL Server** (LocalDB-friendly for local dev)  
+- **Entity Framework Core** + **PostgreSQL** (Neon-friendly for free hosting)  
 - **ASP.NET Core Identity**  
 - **JWT Bearer** authentication  
 - **FluentValidation** for request validation  
 - **AutoMapper** for entity ↔ DTO mapping  
 - **Swashbuckle** (Swagger / OpenAPI)  
 - Global **exception handling** middleware  
+
+> Want this live on the internet? See **[DEPLOY.md](./DEPLOY.md)** (Neon + Render + Cloudflare Pages).
 
 ---
 
@@ -78,7 +80,7 @@ Client (Angular)
 ### Prerequisites
 
 - [.NET 9 SDK](https://dotnet.microsoft.com/download)
-- SQL Server or **LocalDB** (`(localdb)\\mssqllocaldb`)
+- A **PostgreSQL** database (local Postgres or a free [Neon](https://neon.tech) project)
 - (Optional) [EF Core tools](https://learn.microsoft.com/ef/core/cli/dotnet):  
   `dotnet tool install --global dotnet-ef`
 
@@ -91,18 +93,21 @@ cd link-snap-backend
 
 ### 2. Configure
 
-Edit `LinkSnap.API/appsettings.json` (or use User Secrets / environment variables in real deployments):
+Edit `LinkSnap.API/appsettings.json` (or use User Secrets / environment variables):
 
 ```json
 {
   "ConnectionStrings": {
-    "DefaultConnection": "Server=(localdb)\\mssqllocaldb;Database=LinkSnapDb;Trusted_Connection=True;MultipleActiveResultSets=true"
+    "DefaultConnection": "Host=localhost;Port=5432;Database=linksnap;Username=postgres;Password=postgres"
   },
   "JwtSettings": {
     "Secret": "REPLACE_WITH_A_LONG_RANDOM_SECRET",
     "Issuer": "LinkSnap",
     "Audience": "LinkSnapUsers",
     "ExpiryMinutes": 60
+  },
+  "Cors": {
+    "FrontendOrigins": "http://localhost:4200,http://127.0.0.1:4200"
   }
 }
 ```
@@ -111,13 +116,11 @@ Edit `LinkSnap.API/appsettings.json` (or use User Secrets / environment variable
 
 ### 3. Database
 
-From the repo root (or `LinkSnap.API`):
+Migrations run automatically on startup. To apply manually:
 
 ```bash
 dotnet ef database update --project LinkSnap.Infrastructure --startup-project LinkSnap.API
 ```
-
-If migrations are already applied locally, you can skip this step.
 
 ### 4. Run
 
@@ -130,6 +133,7 @@ dotnet run --launch-profile http
 | --- | --- |
 | API | `http://localhost:5002` |
 | Swagger UI | `http://localhost:5002/swagger` |
+| Health | `http://localhost:5002/health` |
 | Example redirect | `http://localhost:5002/{shortCode}` |
 
 CORS is configured for the Angular app on `http://localhost:4200`.
@@ -263,11 +267,11 @@ link-snap-backend/
 
 | Setting | Purpose |
 | --- | --- |
-| `ConnectionStrings:DefaultConnection` | SQL Server connection |
+| `ConnectionStrings:DefaultConnection` | PostgreSQL connection |
 | `JwtSettings:Secret` | Signing key for access tokens |
 | `JwtSettings:Issuer` / `Audience` | Token validation |
 | `JwtSettings:ExpiryMinutes` | Token lifetime |
-| CORS policy `Frontend` | Allows `http://localhost:4200` |
+| `Cors:FrontendOrigins` | Comma-separated allowed frontend origins |
 
 Swagger is enabled for interactive exploration while developing.
 
